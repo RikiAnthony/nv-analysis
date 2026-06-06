@@ -1,13 +1,13 @@
 {
     "hardware": {
-        "com_port": "COM6",
-        "dev_channel": "Dev2/ai0"
+        "com_port": "COM4",
+        "dev_channel": "Dev1/ai0"
     },
     "scan_params": {
-        "mode": "FM", 
-        "f_start": 2.82e9,
+        "mode": "CW",
+        "f_start": 2.72e9,
         "f_end": 3.02e9,
-        "num_points": 100,
+        "num_points": 200,
         "num_repeats": 100,
         "power_dbm": 5,
         "delta_f": 2e6,
@@ -20,7 +20,7 @@
         "shift_threshold_hz": 1e6
     },
     "fitting": {
-        "num_peaks": 1,
+        "num_peaks": 2,
         "f0_reference_hz": 2.870e9,
         "auto_plot": true
     }
