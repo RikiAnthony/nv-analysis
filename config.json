@@ -1,0 +1,27 @@
+{
+    "hardware": {
+        "com_port": "COM6",
+        "dev_channel": "Dev2/ai0"
+    },
+    "scan_params": {
+        "mode": "FM", 
+        "f_start": 2.82e9,
+        "f_end": 3.02e9,
+        "num_points": 100,
+        "num_repeats": 100,
+        "power_dbm": 5,
+        "delta_f": 2e6,
+        "folder_name": "test_sample",
+        "file_prefix": "ODMR"
+    },
+    "tracking": {
+        "enable_auto_center": true,
+        "check_interval": 10,
+        "shift_threshold_hz": 1e6
+    },
+    "fitting": {
+        "num_peaks": 1,
+        "f0_reference_hz": 2.870e9,
+        "auto_plot": true
+    }
+}
