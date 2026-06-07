@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from scipy.signal import find_peaks
 import os
 
 # --- Models ---
@@ -25,6 +26,22 @@ def double_deriv_lorentzian(x, x1, g1, a1, x2, g2, a2, offset_deriv):
     return (offset_deriv + 
             2 * a1 * g1**2 * (x - x1) / ((x - x1)**2 + g1**2)**2 + 
             2 * a2 * g2**2 * (x - x2) / ((x - x2)**2 + g2**2)**2)
+
+def multi_lorentzian(x, *params):
+    offset = params[-1]
+    y = np.ones_like(x) * offset
+    for i in range(0, len(params)-1, 3):
+        xi, gi, ai = params[i:i+3]
+        y -= ai * (gi**2 / ((x - xi)**2 + gi**2))
+    return y
+
+def multi_deriv_lorentzian(x, *params):
+    offset_deriv = params[-1]
+    y = np.ones_like(x) * offset_deriv
+    for i in range(0, len(params)-1, 3):
+        xi, gi, ai = params[i:i+3]
+        y += 2 * ai * gi**2 * (x - xi) / ((x - xi)**2 + gi**2)**2
+    return y
 
 # --- Analysis Functions ---
 
@@ -56,12 +73,38 @@ def fit_odmr(file_path, mode='CW', num_peaks=1):
                 x0_guess = x[np.argmin(y)]
                 p0 = [x0_guess, gamma_guess, amp_guess, offset_guess]
                 popt, pcov = curve_fit(lorentzian, x, y, p0=p0)
-            else:
+            elif num_peaks == 2:
                 # 2 peaks
                 x1_guess = x[np.argmin(y[:len(y)//2])]
                 x2_guess = x[len(x)//2 + np.argmin(y[len(y)//2:])]
                 p0 = [x1_guess, gamma_guess, amp_guess/2, x2_guess, gamma_guess, amp_guess/2, offset_guess]
                 popt, pcov = curve_fit(double_lorentzian, x, y, p0=p0)
+            else:
+                # N peaks (>= 3)
+                y_inv = y.max() - y
+                prominence = (y.max() - y.min()) * 0.1
+                peaks, properties = find_peaks(y_inv, prominence=prominence)
+                
+                if len(peaks) >= num_peaks:
+                    sorted_idx = np.argsort(properties['prominences'])[::-1]
+                    best_peaks = peaks[sorted_idx[:num_peaks]]
+                    best_peaks = np.sort(best_peaks)
+                else:
+                    best_peaks = np.linspace(len(y)//4, 3*len(y)//4, num_peaks, dtype=int)
+                
+                p0 = []
+                lower_bounds = []
+                upper_bounds = []
+                for idx in best_peaks:
+                    p0.extend([x[idx], gamma_guess, amp_guess/num_peaks])
+                    lower_bounds.extend([x.min(), 1e6, 0])
+                    upper_bounds.extend([x.max(), (x.max()-x.min())/2, np.inf])
+                
+                p0.append(offset_guess)
+                lower_bounds.append(-np.inf)
+                upper_bounds.append(np.inf)
+                
+                popt, pcov = curve_fit(multi_lorentzian, x, y, p0=p0, bounds=(lower_bounds, upper_bounds))
         else:
             # FM mode (derivative)
             if num_peaks == 1:
@@ -69,14 +112,36 @@ def fit_odmr(file_path, mode='CW', num_peaks=1):
                 # Roughly center is between peak and dip
                 p0 = [x[len(x)//2], gamma_guess, amp_guess, 0]
                 popt, pcov = curve_fit(deriv_lorentzian, x, y, p0=p0)
-            else:
+            elif num_peaks == 2:
                 p0 = [x[len(x)//3], gamma_guess, amp_guess/2, x[2*len(x)//3], gamma_guess, amp_guess/2, 0]
                 popt, pcov = curve_fit(double_deriv_lorentzian, x, y, p0=p0)
+            else:
+                peaks, properties = find_peaks(y, prominence=(y.max() - y.min()) * 0.1)
+                if len(peaks) >= num_peaks:
+                    sorted_idx = np.argsort(properties['prominences'])[::-1]
+                    best_peaks = peaks[sorted_idx[:num_peaks]]
+                    best_peaks = np.sort(best_peaks)
+                else:
+                    best_peaks = np.linspace(len(y)//4, 3*len(y)//4, num_peaks, dtype=int)
+                
+                p0 = []
+                lower_bounds = []
+                upper_bounds = []
+                for idx in best_peaks:
+                    p0.extend([x[idx] + gamma_guess, gamma_guess, amp_guess/num_peaks])
+                    lower_bounds.extend([x.min(), 1e6, -np.inf]) # amplitude can be negative depending on lock-in phase, but usually positive
+                    upper_bounds.extend([x.max(), (x.max()-x.min())/2, np.inf])
+                    
+                p0.append(0)
+                lower_bounds.append(-np.inf)
+                upper_bounds.append(np.inf)
+                
+                popt, pcov = curve_fit(multi_deriv_lorentzian, x, y, p0=p0, bounds=(lower_bounds, upper_bounds))
         
         perr = np.sqrt(np.diag(pcov))
         return popt, perr, x, y
     except Exception as e:
-        # print(f"Fit failed: {e}")
+        print(f"Fit failed: {e}")
         return None, None, x, y
 
 def quick_find_center(x, y, mode='CW', num_peaks=1):
@@ -110,17 +175,25 @@ def plot_results(x, y, popt, mode='CW', num_peaks=1, output_path=None):
             if num_peaks == 1:
                 y_fit = lorentzian(x_fine, *popt)
                 center = popt[0]
-            else:
+            elif num_peaks == 2:
                 y_fit = double_lorentzian(x_fine, *popt)
                 center = (popt[0] + popt[3]) / 2
+            else:
+                y_fit = multi_lorentzian(x_fine, *popt)
+                centers = popt[0:-1:3]
+                center = (min(centers) + max(centers)) / 2
             plt.plot(x_fine, y_fit, 'r-', lw=2, label='Fit')
         else:
             if num_peaks == 1:
                 y_fit = deriv_lorentzian(x_fine, *popt)
                 center = popt[0]
-            else:
+            elif num_peaks == 2:
                 y_fit = double_deriv_lorentzian(x_fine, *popt)
                 center = (popt[0] + popt[3]) / 2
+            else:
+                y_fit = multi_deriv_lorentzian(x_fine, *popt)
+                centers = popt[0:-1:3]
+                center = (min(centers) + max(centers)) / 2
             plt.plot(x_fine, y_fit, 'g-', lw=2, label='FM Fit')
         
         pressure = calculate_pressure(center)
