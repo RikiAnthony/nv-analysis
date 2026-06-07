@@ -111,7 +111,7 @@ class ODMRScanner:
                         f.write(f"Iteration {entry[0]}: Adjusted Center to {entry[1]/1e9:.6f} GHz\n")
 
             print(f"Data saved to {file_path}")
-            return file_path
+            return file_path, center_history
 
         finally:
             self.synth[0].enable = False
@@ -192,7 +192,7 @@ class ODMRScanner:
                         f.write(f"Iteration {entry[0]}: Adjusted Center to {entry[1]/1e9:.6f} GHz\n")
 
             print(f"FM Data saved to {file_path}")
-            return file_path
+            return file_path, center_history
 
         finally:
             self.synth[0].enable = False
