@@ -1,2 +1,4 @@
 thesis/
 *.pdf
+DATA/
+__pycache__/

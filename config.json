@@ -5,10 +5,10 @@
     },
     "scan_params": {
         "mode": "CW",
-        "f_start": 2.72e9,
-        "f_end": 3.02e9,
+        "f_start": 2.85e9,
+        "f_end": 3.15e9,
         "num_points": 200,
-        "num_repeats": 100,
+        "num_repeats": 150,
         "power_dbm": 5,
         "delta_f": 2e6,
         "folder_name": "test_sample",
@@ -20,7 +20,7 @@
         "shift_threshold_hz": 1e6
     },
     "fitting": {
-        "num_peaks": 2,
+        "num_peaks": 1,
         "f0_reference_hz": 2.870e9,
         "auto_plot": true
     }
