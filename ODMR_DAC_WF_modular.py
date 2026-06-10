@@ -16,6 +16,29 @@ class ODMRScanner:
         self.synth = None
         self.task = None
 
+    def _generate_f_list(self, f_start, f_end, num_points, adaptive_scan, adaptive_width=30e6, center_ratio=0.7):
+        """
+        Generate a frequency array. If adaptive_scan is True, densely samples the center region.
+        """
+        if not adaptive_scan:
+            return np.linspace(f_start, f_end, num_points)
+        
+        f_center = (f_start + f_end) / 2
+        span = f_end - f_start
+        if adaptive_width >= span:
+            return np.linspace(f_start, f_end, num_points)
+            
+        num_center = int(num_points * center_ratio)
+        num_sides = num_points - num_center
+        num_left = num_sides // 2
+        num_right = num_sides - num_left
+        
+        f_left = np.linspace(f_start, f_center - adaptive_width/2, max(1, num_left), endpoint=False)
+        f_mid = np.linspace(f_center - adaptive_width/2, f_center + adaptive_width/2, num_center, endpoint=False)
+        f_right = np.linspace(f_center + adaptive_width/2, f_end, max(1, num_right))
+        
+        return np.concatenate((f_left, f_mid, f_right))
+
     def connect(self):
         print(f"Connecting to Windfreak on {self.com_port}...")
         self.synth = SynthHD(self.com_port)
@@ -37,6 +60,7 @@ class ODMRScanner:
 
     def scan(self, f_start, f_end, num_points, num_repeats, power_dbm, folder_name, 
              auto_center=False, check_interval=10, shift_threshold_hz=1e6,
+             adaptive_scan=False, adaptive_width=30e6,
              file_prefix="CW"):
         # Initial range
         current_f_start = f_start
@@ -51,7 +75,7 @@ class ODMRScanner:
         file_name = f"{file_prefix}_{timestamp}.csv"
         file_path = os.path.join(output_dir, file_name)
 
-        f_list = np.linspace(current_f_start, current_f_end, num_points)
+        f_list = self._generate_f_list(current_f_start, current_f_end, num_points, adaptive_scan, adaptive_width)
         fluo_sum = np.zeros(len(f_list))
         repeats_in_window = 0
         last_completed_result = None
@@ -103,7 +127,7 @@ class ODMRScanner:
                         last_completed_result = (f_list.copy(), current_avg.copy())
                         current_f_start += shift
                         current_f_end += shift
-                        f_list = np.linspace(current_f_start, current_f_end, num_points)
+                        f_list = self._generate_f_list(current_f_start, current_f_end, num_points, adaptive_scan, adaptive_width)
                         fluo_sum = np.zeros(len(f_list))
                         repeats_in_window = 0
                         line.set_xdata(f_list)
@@ -139,6 +163,7 @@ class ODMRScanner:
 
     def fm_scan(self, f_start, f_end, num_points, num_repeats, power_dbm, folder_name, delta_f, 
                 auto_center=False, check_interval=10, shift_threshold_hz=1e6,
+                adaptive_scan=False, adaptive_width=30e6,
                 file_prefix="FM"):
         """
         Software Frequency Modulation scan with Tracking.
@@ -154,7 +179,7 @@ class ODMRScanner:
         file_name = f"{file_prefix}_{timestamp}.csv"
         file_path = os.path.join(output_dir, file_name)
 
-        f_list = np.linspace(current_f_start, current_f_end, num_points)
+        f_list = self._generate_f_list(current_f_start, current_f_end, num_points, adaptive_scan, adaptive_width)
         diff_fluo_sum = np.zeros(len(f_list))
         repeats_in_window = 0
         last_completed_result = None
@@ -205,7 +230,7 @@ class ODMRScanner:
                         last_completed_result = (f_list.copy(), current_avg.copy())
                         current_f_start += shift
                         current_f_end += shift
-                        f_list = np.linspace(current_f_start, current_f_end, num_points)
+                        f_list = self._generate_f_list(current_f_start, current_f_end, num_points, adaptive_scan, adaptive_width)
                         diff_fluo_sum = np.zeros(len(f_list))
                         repeats_in_window = 0
                         line.set_xdata(f_list)
