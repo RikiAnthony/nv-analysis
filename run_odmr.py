@@ -39,6 +39,8 @@ def main():
                 auto_center=track_params.get('enable_auto_center', False),
                 check_interval=track_params.get('check_interval', 10),
                 shift_threshold_hz=track_params.get('shift_threshold_hz', 1e6),
+                adaptive_scan=params.get('adaptive_scan', False),
+                adaptive_width=params.get('adaptive_width', 30e6),
                 file_prefix=params['file_prefix']
             )
         else:
@@ -52,6 +54,8 @@ def main():
                 auto_center=track_params.get('enable_auto_center', False),
                 check_interval=track_params.get('check_interval', 10),
                 shift_threshold_hz=track_params.get('shift_threshold_hz', 1e6),
+                adaptive_scan=params.get('adaptive_scan', False),
+                adaptive_width=params.get('adaptive_width', 30e6),
                 file_prefix=params['file_prefix']
             )
     except Exception as e:

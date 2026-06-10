@@ -5,14 +5,16 @@
     },
     "scan_params": {
         "mode": "CW",
-        "f_start": 2.85e9,
-        "f_end": 3.15e9,
-        "num_points": 200,
+        "f_start": 2.75e9,
+        "f_end": 3.05e9,
+        "num_points": 300,
         "num_repeats": 150,
         "power_dbm": 5,
         "delta_f": 2e6,
         "folder_name": "test_sample",
-        "file_prefix": "ODMR"
+        "file_prefix": "ODMR",
+        "adaptive_scan": false,
+        "adaptive_width": 30000000
     },
     "tracking": {
         "enable_auto_center": true,
