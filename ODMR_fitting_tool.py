@@ -197,7 +197,23 @@ def plot_results(x, y, popt, mode='CW', num_peaks=1, output_path=None):
             plt.plot(x_fine, y_fit, 'g-', lw=2, label='FM Fit')
         
         pressure = calculate_pressure(center)
-        plt.title(f"ODMR Fit ({mode}, {num_peaks} peak(s))\nCenter: {center/1e9:.4f} GHz, Est. Pressure: {pressure:.2f} GPa")
+        
+        contrast_str = ""
+        if mode == 'CW':
+            offset = popt[-1]
+            if num_peaks == 1:
+                contrast = (popt[2] / offset) * 100
+                contrast_str = f", Contrast: {contrast:.1f}%"
+            elif num_peaks == 2:
+                contrast1 = (popt[2] / offset) * 100
+                contrast2 = (popt[5] / offset) * 100
+                contrast_str = f", Contrast: {contrast1:.1f}%, {contrast2:.1f}%"
+            else:
+                amps = popt[2:-1:3]
+                max_contrast = (max(amps) / offset) * 100
+                contrast_str = f", Max Contrast: {max_contrast:.1f}%"
+
+        plt.title(f"ODMR Fit ({mode}, {num_peaks} peak(s)){contrast_str}\nCenter: {center/1e9:.4f} GHz, Est. Pressure: {pressure:.2f} GPa")
     
     plt.xlabel("Frequency (Hz)")
     plt.ylabel("Signal (V)")
