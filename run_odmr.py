@@ -28,7 +28,7 @@ def main():
     try:
         scanner.connect()
         if mode == 'FM':
-            data_file = scanner.fm_scan(
+            data_file, center_history = scanner.fm_scan(
                 f_start=params['f_start'],
                 f_end=params['f_end'],
                 num_points=params['num_points'],
@@ -42,7 +42,7 @@ def main():
                 file_prefix=params['file_prefix']
             )
         else:
-            data_file = scanner.scan(
+            data_file, center_history = scanner.scan(
                 f_start=params['f_start'],
                 f_end=params['f_end'],
                 num_points=params['num_points'],
@@ -67,14 +67,40 @@ def main():
     # 3. Save Results
     if popt is not None:
         result_file = data_file.replace('.csv', '_fit.txt')
-        center = popt[0] if num_peaks == 1 else (popt[0] + popt[3]) / 2
-        pressure = calculate_pressure(center, f0_hz=config['fitting'].get('f0_reference_hz', 2.870e9))
+        
+        if num_peaks == 1:
+            center = popt[0]
+        elif num_peaks == 2:
+            center = (popt[0] + popt[3]) / 2
+        else:
+            centers = popt[0:-1:3]
+            center = (min(centers) + max(centers)) / 2
+            
+        if track_params.get('enable_auto_center', False) and center_history:
+            true_center = sum([c for n, c in center_history]) / len(center_history)
+        else:
+            true_center = center
+            
+        pressure = calculate_pressure(true_center, f0_hz=config['fitting'].get('f0_reference_hz', 2.870e9))
+        
+        if mode == 'CW':
+            offset = popt[-1]
+            contrasts = [popt[i]/offset * 100 for i in range(2, len(popt)-1, 3)]
+        else:
+            contrasts = [popt[i] for i in range(2, len(popt)-1, 3)]
         
         with open(result_file, 'w') as f:
             f.write(f"Mode: {mode}\n")
             f.write(f"Peaks: {num_peaks}\n")
-            f.write(f"Center Frequency: {center/1e9:.66f} GHz\n")
+            f.write(f"Apparent Center Frequency (from fit): {center/1e9:.6f} GHz\n")
+            f.write(f"True Average Center Frequency: {true_center/1e9:.6f} GHz\n")
             f.write(f"Estimated Pressure: {pressure:.4f} GPa\n")
+            if mode == 'CW':
+                for i, c in enumerate(contrasts):
+                    f.write(f"Peak {i+1} Contrast: {c:.2f} %\n")
+            else:
+                for i, c in enumerate(contrasts):
+                    f.write(f"Peak {i+1} FM Amplitude: {c:.4e}\n")
             f.write("-" * 20 + "\n")
             f.write(f"Parameters: {popt.tolist()}\n")
             f.write(f"Errors: {perr.tolist()}\n")
