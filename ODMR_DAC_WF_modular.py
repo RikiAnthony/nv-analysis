@@ -53,6 +53,8 @@ class ODMRScanner:
 
         f_list = np.linspace(current_f_start, current_f_end, num_points)
         fluo_sum = np.zeros(len(f_list))
+        repeats_in_window = 0
+        last_completed_result = None
         
         # Track history of centers
         center_history = []
@@ -74,9 +76,10 @@ class ODMRScanner:
                     self.synth[0].frequency = f
                     data = self.task.read()
                     fluo_sum[i] += data
+                repeats_in_window += 1
 
                 # Update plot
-                current_avg = fluo_sum / (n + 1)
+                current_avg = fluo_sum / repeats_in_window
                 line.set_xdata(f_list) # Frequency list might have changed
                 line.set_ydata(current_avg)
                 ax.set_title(f"CW Iteration: {n+1}/{num_repeats}")
@@ -92,17 +95,33 @@ class ODMRScanner:
                     
                     if abs(shift) > shift_threshold_hz:
                         print(f"Tracking: Peak shifted by {shift/1e6:.2f} MHz. Adjusting window...")
+                        center_history.append((n+1, found_center))
+
+                        # Averages measured on the old frequency grid must not be re-labeled
+                        # with the new grid. Keep the finished window as a snapshot, then
+                        # restart accumulation on the shifted axis.
+                        last_completed_result = (f_list.copy(), current_avg.copy())
                         current_f_start += shift
                         current_f_end += shift
                         f_list = np.linspace(current_f_start, current_f_end, num_points)
-                        center_history.append((n+1, found_center))
-                        # Note: We don't clear fluo_sum, which introduces some 'drag'.
-                        # For more aggressive tracking, one could clear or weigh recent data.
+                        fluo_sum = np.zeros(len(f_list))
+                        repeats_in_window = 0
+                        line.set_xdata(f_list)
+                        line.set_ydata(np.zeros(len(f_list)))
 
             # Save data
+            if repeats_in_window > 0:
+                save_f_list = f_list
+                save_avg = fluo_sum / repeats_in_window
+            elif last_completed_result is not None:
+                save_f_list, save_avg = last_completed_result
+            else:
+                save_f_list = f_list
+                save_avg = np.zeros(len(f_list))
+
             with open(file_path, "w", newline="") as file:
                 writer = csv.writer(file)
-                writer.writerows(list(zip(f_list, fluo_sum / num_repeats)))
+                writer.writerows(list(zip(save_f_list, save_avg)))
             
             # Save tracking log if needed
             if center_history:
@@ -137,6 +156,8 @@ class ODMRScanner:
 
         f_list = np.linspace(current_f_start, current_f_end, num_points)
         diff_fluo_sum = np.zeros(len(f_list))
+        repeats_in_window = 0
+        last_completed_result = None
         center_history = []
 
         self.synth[0].power = power_dbm
@@ -158,9 +179,10 @@ class ODMRScanner:
                     self.synth[0].frequency = f - delta_f / 2
                     v_low = self.task.read()
                     diff_fluo_sum[i] += (v_high - v_low)
+                repeats_in_window += 1
 
                 # Update plot
-                current_avg = diff_fluo_sum / (n + 1)
+                current_avg = diff_fluo_sum / repeats_in_window
                 line.set_xdata(f_list)
                 line.set_ydata(current_avg)
                 ax.set_title(f"FM Iteration: {n+1}/{num_repeats}")
@@ -176,15 +198,32 @@ class ODMRScanner:
                     
                     if abs(shift) > shift_threshold_hz:
                         print(f"Tracking (FM): Peak shifted by {shift/1e6:.2f} MHz. Adjusting window...")
+                        center_history.append((n+1, found_center))
+
+                        # Same rule as CW mode: once the frequency grid changes, restart the
+                        # accumulation so the y-data always matches the x-axis being plotted.
+                        last_completed_result = (f_list.copy(), current_avg.copy())
                         current_f_start += shift
                         current_f_end += shift
                         f_list = np.linspace(current_f_start, current_f_end, num_points)
-                        center_history.append((n+1, found_center))
+                        diff_fluo_sum = np.zeros(len(f_list))
+                        repeats_in_window = 0
+                        line.set_xdata(f_list)
+                        line.set_ydata(np.zeros(len(f_list)))
 
             # Save data
+            if repeats_in_window > 0:
+                save_f_list = f_list
+                save_avg = diff_fluo_sum / repeats_in_window
+            elif last_completed_result is not None:
+                save_f_list, save_avg = last_completed_result
+            else:
+                save_f_list = f_list
+                save_avg = np.zeros(len(f_list))
+
             with open(file_path, "w", newline="") as file:
                 writer = csv.writer(file)
-                writer.writerows(list(zip(f_list, diff_fluo_sum / num_repeats)))
+                writer.writerows(list(zip(save_f_list, save_avg)))
             
             if center_history:
                 with open(file_path.replace('.csv', '_tracking.txt'), 'w') as f:
